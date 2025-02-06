@@ -137,31 +137,46 @@ def on_item_double_click(event):
     row_index = tree.index(selected_item_id)  # 選択されたアイテムのインデックスを取得
     row = df.iloc[row_index]
 
-    # User NotesまたはSummaryの内容を表示するポップアップを作成
-    content = row["User_Notes"] if row["User_Notes"] else row["Summary"]
-
-    # contentがNaN（float型）であれば、空文字列に置き換え
-    if isinstance(content, float) and pd.isna(content):
-        content = "No content available."
-
-    if not content.strip():
-        content = "No content available."
-
     # ポップアップウィンドウを作成
     popup = tk.Toplevel(root)
     popup.title("Detailed View")
 
-    label = tk.Label(popup, text=content, wraplength=400)
+    # ラジオボタンを追加して選べるようにする
+    content_var = tk.StringVar(value="User_Notes")
+    
+    def update_label():
+        content = {
+            "User_Notes": row["User_Notes"],
+            "Error": row["Error"],
+            "Summary": row["Summary"]
+        }.get(content_var.get(), "No content available.")
+        
+        if isinstance(content, float) and pd.isna(content):
+            content = "No content available."
+        label.config(text=content)
+    
+    label = tk.Label(popup, text="", wraplength=400)
     label.pack(padx=10, pady=10)
+
+    radio_frame = tk.Frame(popup)
+    radio_frame.pack(padx=10, pady=10)
+
+    tk.Radiobutton(radio_frame, text="User Notes", variable=content_var, value="User_Notes", command=update_label).pack(side=tk.LEFT)
+    tk.Radiobutton(radio_frame, text="Error", variable=content_var, value="Error", command=update_label).pack(side=tk.LEFT)
+    tk.Radiobutton(radio_frame, text="Summary", variable=content_var, value="Summary", command=update_label).pack(side=tk.LEFT)
+
+    # 初期状態で内容を更新
+    update_label()
 
     button = tk.Button(popup, text="Close", command=popup.destroy)
     button.pack(pady=5)
 
 
-# GUIが閉じられる際に適切にターミナルを終了させるために、`root.quit()`を追加
+# GUIの終了処理
 def on_close():
     root.quit()  # イベントループを終了
     root.destroy()  # GUIを終了
+    os._exit(0)  # ターミナルの終了も強制
 
 
 # CSVファイルを開く関数
@@ -217,6 +232,53 @@ def add_user_notes():
     load_csv()
     user_notes_entry.delete(0, tk.END)  # 入力フィールドをクリア
 
+def command_loop(log_file):
+    df = pd.read_csv(LOG_FILE)
+    while True:
+        try:
+            command = input("$ ")
+            if command.lower() in ["exit", "quit"]:
+                break
+
+            # コマンド実行
+            result = subprocess.run(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # 出力とエラーを記録
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(result.stderr)
+            
+            # データフレーム作成
+            new_row = pd.DataFrame(
+                [
+                    {
+                        "Timestamp": timestamp,
+                        "Command": command,
+                        "Output": result.stdout,
+                        "Error": result.stderr,
+                        "User_Notes": "",
+                        "Summary": "",
+                        "Error_Summary": "",
+                        "Notes_Summary": "",
+                    }
+                ]
+            )
+
+            # 例：新しい行を表示（もしくはファイルに保存）
+            df = pd.concat([df, new_row], ignore_index=True)  # concatを使用
+            df.to_csv(LOG_FILE, index=False)
+
+            # 表を更新
+            load_csv()
+
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break
 
 if __name__ == "__main__":
     LOG_FILE = "command_log.csv"
@@ -313,55 +375,8 @@ if __name__ == "__main__":
     # 初期読み込み
     load_csv()
 
-    while True:
+    thread = threading.Thread(target=command_loop, args=(LOG_FILE,))
+    thread.start()
 
-        # メインループ
-        root.mainloop()
-
-        try:
-            command = input("$ ")
-            if command.lower() in ["exit", "quit"]:
-                break
-
-            # ログ記録（コマンド）
-            # with open(LOG_FILE, "a") as f:
-            #     f.write(f"{datetime.datetime.now()} Command: {command}\n")
-
-            # コマンド実行
-            result = subprocess.run(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            # 出力とエラーを記録
-            # if result.stdout:
-            #     with open(history_file, "a") as f:
-            #         f.write(f"{datetime.datetime.now()} Output: {result.stdout}\n")
-
-            # if result.stderr:
-            #     with open(history_file, "a") as f:
-            #         f.write(f"{datetime.datetime.now()} Error: {result.stderr}\n")
-
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(result.stderr)
-            new_row = pd.DataFrame(
-                [
-                    {
-                        "Timestamp": timestamp,
-                        "Command": command,
-                        "Output": result.stdout,
-                        "Error": result.stderr,
-                        "User_Notes": "",
-                        "Summary": "",
-                        "Error_Summary": "",
-                        "Notes_Summary": "",
-                    }
-                ]
-            )
-
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            break
+    # メインGUIループ（これが常に動作）
+    root.mainloop()
