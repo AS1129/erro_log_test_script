@@ -1,17 +1,14 @@
 import os
-import readline
 import datetime
 import subprocess
 import torch
 from transformers import pipeline
 import tkinter as tk
-from tkinter import scrolledtext, filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 import pandas as pd
-import datetime
-import os
-import subprocess
 import threading
 
+stop_event = threading.Event()
 
 def run_command(command, timestamp):
     try:
@@ -143,27 +140,45 @@ def on_item_double_click(event):
 
     # ラジオボタンを追加して選べるようにする
     content_var = tk.StringVar(value="User_Notes")
-    
+
     def update_label():
         content = {
             "User_Notes": row["User_Notes"],
             "Error": row["Error"],
-            "Summary": row["Summary"]
+            "Summary": row["Summary"],
         }.get(content_var.get(), "No content available.")
-        
+
         if isinstance(content, float) and pd.isna(content):
             content = "No content available."
         label.config(text=content)
-    
+
     label = tk.Label(popup, text="", wraplength=400)
     label.pack(padx=10, pady=10)
 
     radio_frame = tk.Frame(popup)
     radio_frame.pack(padx=10, pady=10)
 
-    tk.Radiobutton(radio_frame, text="User Notes", variable=content_var, value="User_Notes", command=update_label).pack(side=tk.LEFT)
-    tk.Radiobutton(radio_frame, text="Error", variable=content_var, value="Error", command=update_label).pack(side=tk.LEFT)
-    tk.Radiobutton(radio_frame, text="Summary", variable=content_var, value="Summary", command=update_label).pack(side=tk.LEFT)
+    tk.Radiobutton(
+        radio_frame,
+        text="User Notes",
+        variable=content_var,
+        value="User_Notes",
+        command=update_label,
+    ).pack(side=tk.LEFT)
+    tk.Radiobutton(
+        radio_frame,
+        text="Error",
+        variable=content_var,
+        value="Error",
+        command=update_label,
+    ).pack(side=tk.LEFT)
+    tk.Radiobutton(
+        radio_frame,
+        text="Summary",
+        variable=content_var,
+        value="Summary",
+        command=update_label,
+    ).pack(side=tk.LEFT)
 
     # 初期状態で内容を更新
     update_label()
@@ -174,9 +189,10 @@ def on_item_double_click(event):
 
 # GUIの終了処理
 def on_close():
+    stop_event.set()  # スレッド終了イベントをセット
     root.quit()  # イベントループを終了
     root.destroy()  # GUIを終了
-    os._exit(0)  # ターミナルの終了も強制
+    # os._exit(0)  # ターミナルの終了も強制
 
 
 # CSVファイルを開く関数
@@ -232,9 +248,10 @@ def add_user_notes():
     load_csv()
     user_notes_entry.delete(0, tk.END)  # 入力フィールドをクリア
 
+
 def command_loop(log_file):
     df = pd.read_csv(LOG_FILE)
-    while True:
+    while not stop_event.is_set():
         try:
             command = input("$ ")
             if command.lower() in ["exit", "quit"]:
@@ -252,7 +269,7 @@ def command_loop(log_file):
             # 出力とエラーを記録
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print(result.stderr)
-            
+
             # データフレーム作成
             new_row = pd.DataFrame(
                 [
@@ -279,6 +296,7 @@ def command_loop(log_file):
         except KeyboardInterrupt:
             print("\nExiting...")
             break
+
 
 if __name__ == "__main__":
     LOG_FILE = "command_log.csv"
