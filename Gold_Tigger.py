@@ -14,8 +14,8 @@ def run_command(command, timestamp):
     try:
         # subprocess.Popenを使って非同期にコマンドを実行
         process = subprocess.Popen(
-            command,
-            shell=True,
+            command.split(),
+            shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -70,6 +70,11 @@ def execute_command():
 def summarize_logs():
     df = pd.read_csv(LOG_FILE)
 
+    selected_item = tree.selection()
+    if not selected_item:
+        messagebox.showwarning("Select Error", "Please Select a line")
+        return
+
     # データフレームが空でないことを確認
     if df.empty:
         messagebox.showwarning("Empty Log", "The log file is empty.")
@@ -84,33 +89,34 @@ def summarize_logs():
         )
 
         # 各行のErrorとUser_Notesに対して要約を生成
-        for index, row in df.iterrows():
-            error_text = row["Error"]
-            user_notes = row["User_Notes"]
+        index = tree.index(selected_item)
 
-            # Errorの要約
-            if pd.notna(error_text) and error_text.strip():
-                input_length = len(error_text.split())
-                max_length = min(input_length, 100)  # 最大でも100
-                max_length = max(max_length, 5)  # 最小でも5
-                error_summary = summarizer(
-                    error_text, max_length=max_length, min_length=3, do_sample=False
-                )[0]["summary_text"]
-                df.at[index, "Error_Summary"] = error_summary
-            else:
-                df.at[index, "Error_Summary"] = "No error to summarize"
+        error_text = df.at[index, "Error"]
+        user_notes = df.at[index, "User_Notes"]
 
-            # User_Notesの要約
-            if pd.notna(user_notes) and user_notes.strip():
-                input_length = len(user_notes.split())
-                max_length = min(input_length, 100)  # 最大でも100
-                max_length = max(max_length, 5)  # 最小でも5
-                notes_summary = summarizer(
-                    user_notes, max_length=max_length, min_length=3, do_sample=False
-                )[0]["summary_text"]
-                df.at[index, "Notes_Summary"] = notes_summary
-            else:
-                df.at[index, "Notes_Summary"] = "No notes to summarize"
+        # Errorの要約
+        if pd.notna(error_text) and error_text.strip():
+            input_length = len(error_text.split())
+            max_length = min(input_length, 100)  # 最大でも100
+            max_length = max(max_length, 5)  # 最小でも5
+            error_summary = summarizer(
+                error_text, max_length=max_length, min_length=3, do_sample=False
+            )[0]["summary_text"]
+            df.at[index, "Error_Summary"] = error_summary
+        else:
+            df.at[index, "Error_Summary"] = "No error to summarize"
+
+        # User_Notesの要約
+        if pd.notna(user_notes) and user_notes.strip():
+            input_length = len(user_notes.split())
+            max_length = min(input_length, 100)  # 最大でも100
+            max_length = max(max_length, 5)  # 最小でも5
+            notes_summary = summarizer(
+                user_notes, max_length=max_length, min_length=3, do_sample=False
+            )[0]["summary_text"]
+            df.at[index, "Notes_Summary"] = notes_summary
+        else:
+            df.at[index, "Notes_Summary"] = "No notes to summarize"
 
         # 要約後の内容をCSVに保存
         df.to_csv(LOG_FILE, index=False)
@@ -145,7 +151,8 @@ def on_item_double_click(event):
         content = {
             "User_Notes": row["User_Notes"],
             "Error": row["Error"],
-            "Summary": row["Summary"],
+            "Error_Summary": row["Error_Summary"],
+            "Notes_Summary": row["Notes_Summary"],
         }.get(content_var.get(), "No content available.")
 
         if isinstance(content, float) and pd.isna(content):
@@ -174,9 +181,16 @@ def on_item_double_click(event):
     ).pack(side=tk.LEFT)
     tk.Radiobutton(
         radio_frame,
-        text="Summary",
+        text="Error Summary",
         variable=content_var,
-        value="Summary",
+        value="Error_Summary",
+        command=update_label,
+    ).pack(side=tk.LEFT)
+    tk.Radiobutton(
+        radio_frame,
+        text="Notes Summary",
+        variable=content_var,
+        value="Notes_Summary",
         command=update_label,
     ).pack(side=tk.LEFT)
 
@@ -259,8 +273,8 @@ def command_loop(log_file):
 
             # コマンド実行
             result = subprocess.run(
-                command,
-                shell=True,
+                command.split(),
+                shell=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -268,7 +282,7 @@ def command_loop(log_file):
 
             # 出力とエラーを記録
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(result.stderr)
+            # print(result.stderr)
 
             # データフレーム作成
             new_row = pd.DataFrame(
@@ -277,7 +291,7 @@ def command_loop(log_file):
                         "Timestamp": timestamp,
                         "Command": command,
                         "Output": result.stdout,
-                        "Error": result.stderr,
+                        "Error": result.stderr.replace(os.path.expanduser("~"), "***"),
                         "User_Notes": "",
                         "Summary": "",
                         "Error_Summary": "",
@@ -300,6 +314,7 @@ def command_loop(log_file):
 
 if __name__ == "__main__":
     LOG_FILE = "command_log.csv"
+    os.chmod(LOG_FILE, 0o600)  # 読み書き可能だが他のユーザーには見えない
 
     # CSVファイルが存在しない場合、ヘッダーを作成
     if not os.path.exists(LOG_FILE):
