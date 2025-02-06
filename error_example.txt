@@ -1,0 +1,8 @@
+This error occurs when a specified file (e.g., somefile.txt) cannot be found. For example, if you try to open a file using open() or perform some other file operations, and the file does not exist at the specified path, this error is raised.
+
+Main Causes:
+
+The file name or path is incorrect.
+The file has been deleted.
+The file is in a location that is inaccessible (e.g., permissions issue).
+A relative path is specified, and the file is not found in the current working directory.
