@@ -1,23 +1,23 @@
 ※実行時にHugging Faceの要約モデル をローカルにダウンロードして使うようにしてる
 
 ・準備
- ※環境を気にするなら、venvや適当なDockerコンテナを推奨
+ ※環境を気にするなら、venvや適当なDocker使うのを推奨
     pip install -r requirements.txt
     python error_log.py
     時間かかるけど、GUIが表示される
     ファイルとして、command_log.csvが作られる。
 
 ・コマンドを実行して記録
-1. コマンド (例えば、python window.py) を"Enter command to execute: "の欄に入力
+1. コマンド (例えば、python test.py) を"Enter command to execute: "の欄に入力
 2. "Execute Command"ボタンをクリック
-3. Outputに記録されることを確認
+3. 実行出来たらOutputに記録されることを確認
 4. 適当にエラー出るコマンド (pdwとか) を"Enter command to execute: "の欄に入力
 5. Errorの列に記録されることを確認
 
 
 ・調査結果を記録
 1. 実行したコマンドの行を選ぶ
-2. "Input your reserch result: "の欄に適当なコメント(Please install pdwみたいな)を入力
+2. "Input your reserch result: "の欄に適当なコメント(Please install ○○みたいな)を入力
 3. "Add reserch result"ボタンをクリック
 4. User Notesに記録されることを確認
 
@@ -26,4 +26,11 @@
 1. 実行したコマンドの行を選ぶ
 2. "Summary"ボタンを押す
 3. だいぶ時間があって、Summaryの列に記録されることを確認
-※多分、max_lengthがどうのこうののエラーみたいなのが出たり、うまく出力されないかも
+※全部要約されるようになってるっぽい
+※多分、きちんと設定できてなくて、うまく出力されないことが多い
+
+
+
+・終了
+GUI表示を閉じる
+ターミナルでexitを入力
